@@ -1,0 +1,226 @@
+﻿<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>MiniProfiler Kayıtları</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://unpkg.com/gridjs/dist/theme/mermaid.min.css" rel="stylesheet" />
+    <script src="https://unpkg.com/gridjs/dist/gridjs.umd.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0.3rem;
+            background-color: #1e1e1e;
+            color: #fff;
+            font-family: "Segoe UI", sans-serif;
+        }
+
+        .clickable-row:hover {
+            cursor: pointer;
+        }
+
+        .gridjs-container {
+            color: #fff;
+        }
+
+        .gridjs-wrapper {
+            overflow: auto;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(255, 255, 255, 0.1);
+        }
+
+        .gridjs-tr:hover td {
+            background-color: #222 !important;
+            transition: background-color 0.2s ease;
+        }
+
+        .gridjs-tbody {
+            background-color: #000;
+        }
+
+        td.gridjs-td {
+            border: 1px solid #2d2923;
+            background-color: #000;
+            padding: 12px 24px;
+        }
+
+        th.gridjs-th {
+            color: #ccc;
+            background-color: #121212;
+            border: 1px solid #2d2923;
+            padding: 14px 24px;
+        }
+
+        th.gridjs-th-sort:hover {
+            background-color: #1a1814;
+        }
+
+        input.gridjs-input {
+            background-color: #000;
+            border: 1px solid #2d2923;
+            color: #fff;
+            padding: 10px 13px;
+            border-radius: 5px;
+        }
+
+        .gridjs-pagination {
+            color: #c2bfbb;
+        }
+
+            .gridjs-pagination .gridjs-pages button {
+                background-color: #000;
+                color: #fff;
+                border: 1px solid #2d2923;
+            }
+
+                .gridjs-pagination .gridjs-pages button.gridjs-currentPage {
+                    background-color: #080808;
+                    font-weight: bold;
+                }
+
+        .gridjs-footer {
+            background-color: #000;
+            border-top: 1px solid #2d2923;
+            color: #fff;
+        }
+
+        
+        .gridjs-pagination .gridjs-pages button.gridjs-spread {
+            background-color: black;
+            box-shadow: none;
+            cursor: default;
+            padding: 5px 4px;
+            min-width: auto;  
+            width: 20px;   
+            text-align: center;
+        }
+        .gridjs-search {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            margin-bottom: 1rem;
+            padding: 0 1rem;
+        }
+
+        .gridjs-input.gridjs-search-input {
+            width: 100%; 
+            padding: 0.75rem 1rem;
+            font-size: 1rem;
+            background-color: #000;
+            color: #fff;
+            border: 1px solid #2d2923;
+            border-radius: 6px;
+            box-sizing: border-box;
+        }
+        .gridjs-head {
+            margin-bottom: 0px;
+            padding: 0px 0px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="table"></div>
+    <script>
+        let currentSort = {
+            index: null,
+            ascending: true
+        };
+        new gridjs.Grid({
+            columns: [
+                "Adres", "Kullanıcı", "Makine", "Tarih (TR)", "Süre (ms)",
+                { name: "id", hidden: true }
+            ],
+            server: {
+                url: '/Profiler/ProfilerList',
+                then: data => data.items.map(item => [
+                    item.name,
+                    item.user,
+                    item.machineName,
+                    new Date(item.started).toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" }),
+                    item.durationMilliseconds,
+                    item.id
+                ]),
+                total: data => data.totalCount
+            },
+            pagination: {
+                limit: 10,
+                server: {
+                    url: (prev, page, limit) => {
+                        const skip = page * limit; 
+                        const url = new URL(prev, window.location.origin);
+                        url.searchParams.set("skip", skip);
+                        url.searchParams.set("take", limit);
+                        return url.pathname + url.search;
+                    }
+                },
+                summary: true
+            },
+
+            search: {
+                enabled: true,
+                server: {
+                    url: (prev, keyword) => `${prev}${prev.includes('?') ? '&' : '?'}search=${encodeURIComponent(keyword)}`
+                }
+            },
+            sort: {
+                enabled: true,
+                multiColumn: false,
+                server: {
+                    url: (prev, columns) => {
+                        const col = columns[0];
+                        if (!col) return prev;
+
+                        const index = col.index;
+
+                        // Aynı kolona tekrar tıklandıysa yönü tersine çevir
+                        if (currentSort.index === index) {
+                            currentSort.ascending = !currentSort.ascending;
+                        } else {
+                            currentSort.index = index;
+                            currentSort.ascending = true; // yeni kolona geçildiğinde hep asc başlat
+                        }
+
+                        const sortValue = currentSort.ascending
+                            ? (index + 1).toString()
+                            : `-${index + 1}`;
+
+                        const url = new URL(prev, window.location.origin);
+                        url.searchParams.set("sort", sortValue);
+                        return url.pathname + url.search;
+                    }
+                }
+            },
+
+            resizable: true,
+            className: {
+                tr: "clickable-row"
+            },
+            language: {
+                search: {
+                    placeholder: "Aranacak anahtar kelimeyi giriniz..."
+                },
+                pagination: {
+                    previous: "Önceki",
+                    next: "Sonraki",
+                    showing: " ",
+                    results: "kayıt var.",
+                    of: "kayıt arası gösteriliyor.",
+                    to: "ile"
+                },
+                loading: "Yükleniyor...",
+                noRecordsFound: "Kayıt bulunamadı",
+                error: "Bir hata oluştu"
+            }
+        })
+            .render(document.getElementById("table"))
+            .on("rowClick", (...args) => {
+                const row = args[1];
+                const id = row.cells[5].data;
+                window.open(`/mini-profiler/results?id=${id}`, '_blank');
+            });
+
+    </script>
+</body>
+
+</html>
